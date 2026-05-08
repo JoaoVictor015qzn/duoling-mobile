@@ -6,9 +6,9 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    cognito_id = Column(String, unique=True, index=True) # ID from AWS Cognito
-    email = Column(String, unique=True, index=True)
-    name = Column(String)
+    email = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    hashed_password = Column(String, nullable=False)
     xp = Column(Integer, default=0)
     level = Column(Integer, default=1)
     streak = Column(Integer, default=0)
