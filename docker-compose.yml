@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # ── PostgreSQL ────────────────────────────────────────────────
   db:
     image: postgres:15-alpine
     container_name: duoling_postgres
@@ -13,7 +14,13 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
+  # ── pgAdmin ───────────────────────────────────────────────────
   pgadmin:
     image: dpage/pgadmin4
     container_name: duoling_pgadmin
@@ -26,5 +33,44 @@ services:
     depends_on:
       - db
 
+  # ── Backend (FastAPI + Hot Reload) ────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: duoling_backend
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://postgres:password@db:5432/duoling_db
+      SECRET_KEY: dev-secret-key-change-in-production
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app/backend    # ← Hot reload: edita no PC, reflete no container
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/backend
+
+  # ── Frontend (Expo + Hot Reload) ──────────────────────────────
+  frontend:
+    build:
+      context: ./mobile
+      dockerfile: Dockerfile
+    container_name: duoling_frontend
+    restart: always
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./mobile:/app    # ← Hot reload: edita no PC, reflete no container
+      - /app/node_modules # Evita sobrescrever node_modules do container com o local
+    environment:
+      - CHOKIDAR_USEPOLLING=true # Necessário para hot-reload funcionar no Docker (Windows)
+      - EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
+      - REACT_NATIVE_PACKAGER_HOSTNAME=localhost # Mude para seu IP local (ex: 192.168.1.x) se for testar no celular sem tunnel
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:
+
